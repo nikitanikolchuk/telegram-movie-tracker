@@ -1,6 +1,8 @@
 import os
 from datetime import date
+
 import requests
+
 from api.models import Title
 
 HEADERS = {

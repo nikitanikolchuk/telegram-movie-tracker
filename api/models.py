@@ -3,6 +3,7 @@ from datetime import date
 
 class Title:
     """Class representing an IMDB title (e.g. movie, series, episode)"""
+
     def __init__(
             self,
             imdb_id: str,
