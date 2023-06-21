@@ -1,9 +1,10 @@
+from asgiref.sync import sync_to_async
 import logging
+import re
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
-from asgiref.sync import sync_to_async
-
-from db.models import Title
+import api
+from db.models import Show
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -16,19 +17,29 @@ async def start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Add an IMDB title in the format '/add {id}' """
-    # TODO: change to accept URL
+    """Add an IMDB title in the format '/add {url}' """
+    if len(context.args) != 1:
+        await update.message.reply_text("Command is not in the format '/add {url}'")
+        return
+    match = re.match(r'(https://www\.|www\.)?imdb\.com/title/(?P<id>tt[0-9]+)/.*', context.args[0])
+    if not match:
+        await update.message.reply_text("Invalid link")
+        return
+
     try:
-        # TODO: change to fetch data from API
-        imdb_id = context.args[0]
-        await sync_to_async(Title.create(imdb_id).save)()
-    except IndexError:
-        await update.message.reply_text("Incorrect format")
-        return
+        title = api.get_title(match.group('id'))
     except ValueError:
-        await update.message.reply_text("Incorrect id")
+        await update.message.reply_text("Invalid link")
         return
-    await update.message.reply_text(f"Saved title with id {context.args[0]}")
+
+    if title.is_episode:
+        await update.message.reply_text("Link points to an episode, send link to a show instead")
+        return
+
+    # TODO: check if movie is already released
+    # TODO: add user table
+    await sync_to_async(Show.create(title).save)()  # type: ignore
+    await update.message.reply_text(f"Added {title.type} {title.name}")
 
 
 def main() -> None:

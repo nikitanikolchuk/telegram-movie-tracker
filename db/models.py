@@ -1,29 +1,26 @@
-import re
-from typing import Final
+from typing_extensions import Self
 from django.db import models
 from manage import init_django
+from api.models import Title
 
 init_django()
 
 
-class Title(models.Model):
-    """Class representing an IMDB title (e.g. movie or series)"""
+class Show(models.Model):
+    """Class representing an IMDB show (e.g. movie or series)"""
     class Meta:
-        db_table = 'title'
+        db_table = 'show'
 
-    id = models.IntegerField(primary_key=True, db_column='id_title')
-    title_type = models.CharField(max_length=256)
-    title_text = models.CharField(max_length=256)
+    id = models.CharField(max_length=256, primary_key=True, db_column='id_show')
+    name = models.CharField(max_length=256)
+    is_series = models.BooleanField()
+    release_date = models.DateField(blank=True, null=True)
 
-    IMDB_ID_LENGTH: Final[int] = 7
-
-    # TODO: remove default parameters
     @classmethod
-    def create(cls, imdb_id: str, title_type: str = "", title_text: str = ""):
-        if not re.match(r"^tt[0-9]{7}$", imdb_id):
-            raise ValueError(f"IMDB id '{imdb_id}' has incorrect format")
-        title = cls(id=int(imdb_id[2:]), title_type=title_type, title_text=title_text)
-        return title
-
-    def get_imdb_id(self) -> str:
-        return f'tt{str(self.id).zfill(Title.IMDB_ID_LENGTH)}'
+    def create(cls, title: Title) -> Self:
+        return cls(
+            id=title.id,
+            name=title.name,
+            is_series=title.is_series,
+            release_date=title.release_date
+        )
