@@ -21,10 +21,10 @@ async def start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         await sync_to_async(User(update.effective_user.id).save)()  # type: ignore
 
 
-async def add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Command to add an IMDB show in the format '/add {url}' """
+async def track(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Command to add an IMDB show in the format '/track {url}' """
     if len(context.args) != 1:
-        await update.message.reply_text("Command is not in the format '/add {url}'")
+        await update.message.reply_text("Command is not in the format '/track {url}'")
         return
     match = re.match(r'(https://www\.|www\.)?imdb\.com/title/(?P<id>tt[0-9]+)/.*', context.args[0])
     if not match:
@@ -61,7 +61,7 @@ def main() -> None:
     )
 
     application.add_handler(CommandHandler('start', start))
-    application.add_handler(CommandHandler('add', add))
+    application.add_handler(CommandHandler('track', track))
 
     application.run_polling()
 
