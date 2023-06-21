@@ -4,7 +4,7 @@ import re
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 import api
-from db.models import Show
+from db.models import User, Show
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -14,6 +14,8 @@ logging.basicConfig(
 
 async def start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Hello! I'm a bot for tracking releases of new shows")
+    if not await sync_to_async(User.objects.filter(id=update.effective_user.id).exists)(): # type: ignore
+        await sync_to_async(User(update.effective_user.id).save)() # type: ignore
 
 
 async def add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -37,8 +39,9 @@ async def add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     # TODO: check if movie is already released
-    # TODO: add user table
-    await sync_to_async(Show.create(title).save)()  # type: ignore
+    show = Show.create(title)
+    await sync_to_async(show.save)()  # type: ignore
+    await sync_to_async(show.users.add)(update.effective_user.id)
     await update.message.reply_text(f"Added {title.type} {title.name}")
 
 
