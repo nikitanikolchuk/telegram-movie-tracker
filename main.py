@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 from datetime import date
 
@@ -56,7 +57,7 @@ async def track(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 def main() -> None:
     application = (
         ApplicationBuilder()
-        .token('6275382423:AAFWlnD_S2-XtRLY6LOIBIoLeXpx95Z8ySs')
+        .token(os.environ['BOT_TOKEN'])
         .build()
     )
 
