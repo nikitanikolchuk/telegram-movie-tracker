@@ -6,8 +6,8 @@ from asgiref.sync import sync_to_async
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 
-import api
-from db.models import User, Show
+from telegram_movie_tracker import api
+from telegram_movie_tracker.db.models import User, Show
 from settings import env
 
 logging.basicConfig(

@@ -1,13 +1,14 @@
 from django.db import models
 
-from db.managers import ShowManager
 from settings import init_django
+from telegram_movie_tracker.db.managers import ShowManager
 
 init_django()
 
 
 class User(models.Model):
     """Class representing a Telegram user"""
+
     class Meta:
         db_table = 'user'
 
@@ -16,6 +17,7 @@ class User(models.Model):
 
 class Show(models.Model):
     """Class representing an IMDB show (e.g. movie or series)"""
+
     class Meta:
         db_table = 'show'
 

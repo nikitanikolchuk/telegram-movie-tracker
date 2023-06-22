@@ -2,8 +2,8 @@ from datetime import date
 
 import requests
 
-from api.models import Title
 from settings import env
+from telegram_movie_tracker.api.models import Title
 
 HEADERS = {
     'X-RapidAPI-Key': env('API_KEY'),

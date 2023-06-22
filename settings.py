@@ -13,7 +13,7 @@ def init_django() -> None:
 
     settings.configure(
         INSTALLED_APPS=[
-            'db',
+            'telegram_movie_tracker'
         ],
         DATABASES={
             'default': {
