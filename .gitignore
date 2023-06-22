@@ -120,7 +120,7 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-.env
+telegram_movie_tracker/.env
 .venv
 env/
 venv/

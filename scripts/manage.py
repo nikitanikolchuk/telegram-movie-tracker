@@ -1,6 +1,6 @@
 import sys
 
-from settings import init_django
+from telegram_movie_tracker.settings import init_django
 
 
 if __name__ == '__main__':

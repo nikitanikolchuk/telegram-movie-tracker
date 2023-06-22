@@ -2,7 +2,7 @@ from datetime import date
 
 import requests
 
-from settings import env
+from telegram_movie_tracker.settings import env
 from telegram_movie_tracker.api.models import Title
 
 HEADERS = {

@@ -8,7 +8,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 
 from telegram_movie_tracker import api
 from telegram_movie_tracker.db.models import User, Show
-from settings import env
+from telegram_movie_tracker.settings import env
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",

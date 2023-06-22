@@ -1,6 +1,6 @@
 from django.db import models
 
-from settings import init_django
+from telegram_movie_tracker.settings import init_django
 from telegram_movie_tracker.db.managers import ShowManager
 
 init_django()
