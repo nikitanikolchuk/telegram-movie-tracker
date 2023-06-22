@@ -29,7 +29,7 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60
 CELERY_BEAT_SCHEDULE = {
     'test_task': {
-        'task': 'telegram_movie_tracker.tasks.test_task',
+        'task': 'telegram_movie_tracker.tasks.tasks.test_task',
         'schedule': crontab(),
         'args' : {datetime.now()}
     }

@@ -16,5 +16,5 @@ app.config_from_object(
 )
 
 app.conf.update(
-    imports=['telegram_movie_tracker.tasks']
+    imports=['telegram_movie_tracker.tasks.tasks']
 )
