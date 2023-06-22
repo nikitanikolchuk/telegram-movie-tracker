@@ -1,12 +1,12 @@
-import os
 from datetime import date
 
 import requests
 
 from api.models import Title
+from settings import env
 
 HEADERS = {
-    'X-RapidAPI-Key': os.environ['API_KEY'],
+    'X-RapidAPI-Key': env('API_KEY'),
     'X-RapidAPI-Host': 'moviesdatabase.p.rapidapi.com'
 }
 

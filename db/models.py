@@ -1,7 +1,7 @@
 from django.db import models
 
 from db.managers import ShowManager
-from manage import init_django
+from settings import init_django
 
 init_django()
 

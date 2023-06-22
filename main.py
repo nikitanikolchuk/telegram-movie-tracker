@@ -1,5 +1,4 @@
 import logging
-import os
 import re
 from datetime import date
 
@@ -9,6 +8,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 
 import api
 from db.models import User, Show
+from settings import env
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -57,7 +57,7 @@ async def track(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 def main() -> None:
     application = (
         ApplicationBuilder()
-        .token(os.environ['BOT_TOKEN'])
+        .token(env('BOT_TOKEN'))
         .build()
     )
 
