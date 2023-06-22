@@ -1,8 +1,5 @@
-from datetime import datetime
-
 import django
 import environ
-from celery.schedules import crontab
 from django.conf import settings
 
 env = environ.Env()
@@ -21,17 +18,6 @@ DATABASES = {
         'PASSWORD': env('DB_PASSWORD'),
         'HOST': env('DB_HOST'),
         'PORT': env('DB_PORT'),
-    }
-}
-
-CELERY_TIMEZONE = 'UTC'
-CELERY_TASK_TRACK_STARTED = True
-CELERY_TASK_TIME_LIMIT = 30 * 60
-CELERY_BEAT_SCHEDULE = {
-    'test_task': {
-        'task': 'telegram_movie_tracker.tasks.tasks.test_task',
-        'schedule': crontab(),
-        'args' : {datetime.now()}
     }
 }
 
