@@ -11,6 +11,7 @@ class User(models.Model):
 
     class Meta:
         db_table = 'user'
+        app_label = 'telegram_movie_tracker'
 
     id = models.IntegerField(primary_key=True)
 
@@ -20,6 +21,7 @@ class Show(models.Model):
 
     class Meta:
         db_table = 'show'
+        app_label = 'telegram_movie_tracker'
 
     objects = ShowManager()
 
