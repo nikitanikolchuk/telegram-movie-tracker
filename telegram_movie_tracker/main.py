@@ -4,6 +4,7 @@ from datetime import date, time
 
 from asgiref.sync import sync_to_async
 from telegram import Update
+from telegram.error import BadRequest
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 from tmdbsimple import Movies, TV
 from tmdbsimple.find import Find
@@ -16,7 +17,7 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-IMAGE_URL_PREFIX='https://image.tmdb.org/t/p/w500'
+IMAGE_URL_PREFIX = 'https://image.tmdb.org/t/p/w500'
 
 
 async def start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -64,27 +65,35 @@ async def track(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 def get_movie_releases() -> list[tuple[User, Movie, str]]:
     """
     Get new movie releases as a list of tuples (tracking_user, released_movie, image_url).
-    Released shows are deleted.
+    Released shows are deleted from the database.
     """
     releases = []
     for movie in Movie.objects.all():
         if movie.release_date is not None and movie.release_date <= date.today():
-            poster_path = Movies(movie.id).info()['poster_path']
-            image_url = IMAGE_URL_PREFIX + poster_path
+            image_url = IMAGE_URL_PREFIX
+            movie_info = Movies(movie.id).info()
+            if 'poster_path' in movie_info:
+                image_url += str(Movies(movie.id).info()['poster_path'])
             for user in movie.users.all():
                 releases.append((user, movie, image_url))
             movie.delete()
     return releases
 
 
-async def send_releases(context: ContextTypes.DEFAULT_TYPE):
+async def send_releases(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send info about new releases to users tracking them"""
     for (user, movie, image_url) in await get_movie_releases():
-        await context.bot.send_photo(
-            chat_id=user.id,
-            photo=image_url,
-            caption=f"{movie.title} was released"
-        )
+        try:
+            await context.bot.send_photo(
+                chat_id=user.id,
+                photo=image_url,
+                caption=f"{movie.title} was released"
+            )
+        except BadRequest:
+            await context.bot.send_message(
+                chat_id=user.id,
+                text=f"{movie.title} was released"
+            )
 
 
 def main() -> None:
