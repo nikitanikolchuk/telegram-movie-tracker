@@ -1,6 +1,6 @@
 import logging
 import re
-from datetime import date
+from datetime import date, time
 
 from asgiref.sync import sync_to_async
 from telegram import Update
@@ -54,6 +54,36 @@ async def track(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(f"Started tracking {title.type} {title.name}")
 
 
+@sync_to_async
+def get_show_releases() -> list[tuple[User, Show]]:
+    """
+    Get new show releases as a list of tuples (tracking_user, released_show).
+    Shows' release dates are updated beforehand and released shows are deleted.
+    """
+    releases = []
+    for show in Show.objects.filter(is_series=False):
+        # TODO: create separate update function
+        if show.release_date is None:
+            show.release_date = api.get_title(show.id).release_date
+            if show.release_date is not None:
+                show.save()
+        if show.release_date is not None and show.release_date <= date.today():
+            for user in show.users.all():
+                releases.append((user, show))
+            show.delete()
+    return releases
+
+
+async def send_releases(context: ContextTypes.DEFAULT_TYPE):
+    """Send info about new releases to users tracking them"""
+    for (user, show) in await get_show_releases():
+        # TODO: replace with send_photo
+        await context.bot.send_message(
+            chat_id=user.id,
+            text=f"{show.name} was released"
+        )
+
+
 def main() -> None:
     application = (
         ApplicationBuilder()
@@ -63,6 +93,8 @@ def main() -> None:
 
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('track', track))
+
+    application.job_queue.run_daily(send_releases, time(hour=18, minute=0))
 
     application.run_polling()
 
