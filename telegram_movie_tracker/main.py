@@ -1,3 +1,4 @@
+import datetime
 import logging
 import re
 from datetime import date, time
@@ -9,7 +10,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 from tmdbsimple import Movies, TV
 from tmdbsimple.find import Find
 
-from telegram_movie_tracker.db.models import User, Movie
+from telegram_movie_tracker.db.models import User, Movie, TVShow
 from telegram_movie_tracker.settings import env
 
 logging.basicConfig(
@@ -38,27 +39,32 @@ async def track(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     find_info = Find(match.group('id')).info(external_source='imdb_id')
     if find_info['movie_results']:
-        show_info = Movies(find_info['movie_results'][0]['id']).info()
-        if show_info['status'] == 'Released':
+        movie_info = Movies(find_info['movie_results'][0]['id']).info()
+        show_name = movie_info['title']
+        if movie_info['status'] == 'Released':
             await update.message.reply_text("The movie was already released")
             return
         try:
-            await Movie.objects.track_movie(show_info, update.effective_user.id)
+            await Movie.objects.track_movie(movie_info, update.effective_user.id)
         except ValueError:
-            await update.message.reply_text(f"You are already tracking {show_info['title']}")
+            await update.message.reply_text(f"You are already tracking {movie_info['title']}")
+            return
     elif find_info['tv_results'] or find_info['tv_episode_results']:
         if find_info['tv_results']:
-            show_info = TV(find_info['tv_results'][0]['id']).info()
+            tv_show_info = TV(find_info['tv_results'][0]['id']).info()
         else:
-            show_info = TV(find_info['tv_episode_results'][0]['show_id']).info()
-        # TODO
-        await update.message.reply_text("TV shows are not supported yet")
-        return
+            tv_show_info = TV(find_info['tv_episode_results'][0]['show_id']).info()
+        show_name = tv_show_info['name']
+        try:
+            await TVShow.objects.track_tv_show(tv_show_info, update.effective_user.id)
+        except ValueError:
+            await update.message.reply_text(f"You are already tracking {tv_show_info['name']}")
+            return
     else:
         await update.message.reply_text("Invalid link")
         return
 
-    await update.message.reply_text(f"Started tracking {show_info['title']}")
+    await update.message.reply_text(f"Started tracking {show_name}")
 
 
 @sync_to_async
@@ -69,19 +75,56 @@ def get_movie_releases() -> list[tuple[User, Movie, str]]:
     """
     releases = []
     for movie in Movie.objects.all():
+        movie_info = Movies(movie.id).info()
+        if 'release_date' in movie_info and movie_info['release_date'] != '':
+            movie.release_date = datetime.datetime.strptime(movie_info['release_date'], '%Y-%m-%d').date()
+            movie.save()
         if movie.release_date is not None and movie.release_date <= date.today():
             image_url = IMAGE_URL_PREFIX
-            movie_info = Movies(movie.id).info()
             if 'poster_path' in movie_info:
-                image_url += str(Movies(movie.id).info()['poster_path'])
+                image_url += str(movie_info['poster_path'])
             for user in movie.users.all():
                 releases.append((user, movie, image_url))
             movie.delete()
     return releases
 
 
+@sync_to_async
+def get_tv_show_releases() -> list[tuple[User, str, str]]:
+    """
+    Get new tv show episode releases as a list of tuples (tracking_user, message_text, image_url).
+    """
+    releases = []
+    for tv_show in TVShow.objects.all():
+        tv_show_info = TV(tv_show.id).info()
+        if 'last_episode_to_air' in tv_show_info and tv_show_info['last_episode_to_air'] != '':
+            last_episode_info = tv_show_info['last_episode_to_air']
+            image_url = IMAGE_URL_PREFIX
+            if last_episode_info['season_number'] > tv_show.last_season:
+                tv_show.last_season = last_episode_info['season_number']
+                tv_show.last_episode = last_episode_info['episode_number']
+                tv_show.save()
+                message_text = f"{tv_show.title} Season {tv_show.last_season} was released.\n" \
+                               f"Number of already available episodes is {tv_show.last_episode}"
+                if 'poster_path' in tv_show_info['seasons'][tv_show.last_season]:
+                    image_url += str(tv_show_info['seasons'][tv_show.last_season]['poster_path'])
+            elif last_episode_info['episode_number'] > tv_show.last_episode:
+                tv_show.last_episode = last_episode_info['episode_number']
+                tv_show.save()
+                message_text = f"{tv_show.title} Season {tv_show.last_season} episode " \
+                               f"{tv_show.last_episode} was released"
+                if 'poster_path' in last_episode_info['still_path']:
+                    image_url += str(last_episode_info['still_path'])
+            else:
+                continue
+            for user in tv_show.users.all():
+                releases.append((user, message_text, image_url))
+    return releases
+
+
 async def send_releases(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send info about new releases to users tracking them"""
+    # TODO: get rid of code duplication
     for (user, movie, image_url) in await get_movie_releases():
         try:
             await context.bot.send_photo(
@@ -93,6 +136,19 @@ async def send_releases(context: ContextTypes.DEFAULT_TYPE) -> None:
             await context.bot.send_message(
                 chat_id=user.id,
                 text=f"{movie.title} was released"
+            )
+
+    for (user, message_text, image_url) in await get_tv_show_releases():
+        try:
+            await context.bot.send_photo(
+                chat_id=user.id,
+                photo=image_url,
+                caption=message_text
+            )
+        except BadRequest:
+            await context.bot.send_message(
+                chat_id=user.id,
+                text=message_text
             )
 
 
@@ -107,7 +163,6 @@ def main() -> None:
     application.add_handler(CommandHandler('track', track))
 
     application.job_queue.run_daily(send_releases, time(hour=18, minute=0))
-    # TODO: add a job for updating show info
 
     application.run_polling()
 
