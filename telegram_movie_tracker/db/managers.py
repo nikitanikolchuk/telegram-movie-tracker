@@ -18,7 +18,7 @@ class MovieManager(models.Manager):
         return movie
 
     @sync_to_async
-    def track_movie(self, movie_info: dict, user_id: int):
+    def track_movie(self, movie_info: dict, user_id: int) -> None:
         movie = self.get_or_create_movie(movie_info)
         if movie.users.filter(id=user_id).exists():
             raise ValueError(f"Already tracking this movie")

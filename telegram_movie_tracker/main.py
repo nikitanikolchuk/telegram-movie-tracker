@@ -16,6 +16,8 @@ logging.basicConfig(
     level=logging.INFO
 )
 
+IMAGE_URL_PREFIX='https://image.tmdb.org/t/p/w500'
+
 
 async def start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Hello! I'm a bot for tracking releases of new shows")
@@ -59,27 +61,29 @@ async def track(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 @sync_to_async
-def get_movie_releases() -> list[tuple[User, Movie]]:
+def get_movie_releases() -> list[tuple[User, Movie, str]]:
     """
-    Get new movie releases as a list of tuples (tracking_user, released_movie).
+    Get new movie releases as a list of tuples (tracking_user, released_movie, image_url).
     Released shows are deleted.
     """
     releases = []
     for movie in Movie.objects.all():
         if movie.release_date is not None and movie.release_date <= date.today():
+            poster_path = Movies(movie.id).info()['poster_path']
+            image_url = IMAGE_URL_PREFIX + poster_path
             for user in movie.users.all():
-                releases.append((user, movie))
+                releases.append((user, movie, image_url))
             movie.delete()
     return releases
 
 
 async def send_releases(context: ContextTypes.DEFAULT_TYPE):
     """Send info about new releases to users tracking them"""
-    for (user, movie) in await get_movie_releases():
-        # TODO: replace with send_photo
-        await context.bot.send_message(
+    for (user, movie, image_url) in await get_movie_releases():
+        await context.bot.send_photo(
             chat_id=user.id,
-            text=f"{movie.title} was released"
+            photo=image_url,
+            caption=f"{movie.title} was released"
         )
 
 
