@@ -4,3 +4,4 @@ asgiref==3.7.2
 requests==2.31.0
 python-telegram-bot==20.3
 environ==1.0
+tmdbsimple==2.9.1

@@ -1,7 +1,7 @@
 from django.db import models
 
+from telegram_movie_tracker.db.managers import MovieManager
 from telegram_movie_tracker.settings import init_django
-from telegram_movie_tracker.db.managers import ShowManager
 
 init_django()
 
@@ -15,16 +15,17 @@ class User(models.Model):
     id = models.IntegerField(primary_key=True)
 
 
-class Show(models.Model):
-    """Class representing an IMDB show (e.g. movie or series)"""
+class Movie(models.Model):
+    """Class representing a movie from IMDB"""
 
     class Meta:
-        db_table = 'show'
+        db_table = 'movie'
 
-    objects = ShowManager()
+    objects = MovieManager()
 
-    id = models.CharField(max_length=256, primary_key=True)
-    name = models.CharField(max_length=256)
-    is_series = models.BooleanField()
+    id = models.IntegerField(primary_key=True)
+    title = models.CharField(max_length=256)
     release_date = models.DateField(blank=True, null=True)
-    users = models.ManyToManyField(User, related_name='shows', db_table='show_user')
+    users = models.ManyToManyField(User, related_name='movies', db_table='movie_user')
+
+# TODO: add TV_show class

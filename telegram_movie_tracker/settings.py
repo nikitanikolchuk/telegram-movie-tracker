@@ -1,9 +1,12 @@
 import django
 import environ
+import tmdbsimple as tmdb
 from django.conf import settings
 
 env = environ.Env()
 env.read_env()
+
+tmdb.API_KEY = env('API_KEY')
 
 INSTALLED_APPS = [
     'telegram_movie_tracker',
