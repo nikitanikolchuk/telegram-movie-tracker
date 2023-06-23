@@ -68,6 +68,24 @@ async def track(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 @sync_to_async
+def get_tracked_list(user_id: int) -> str:
+    """Get a list of movies and TV shows for this user as a str"""
+    message_text = "Movies:\n"
+    user = User.objects.get(pk=user_id)  # type: ignore
+    for movie in user.movies.all():
+        message_text += f"- {movie.title}\n"
+    message_text += "TV shows:\n"
+    for tv_show in user.tv_shows.all():
+        message_text += f"- {tv_show.title}\n"
+    return message_text
+
+
+async def shows(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send user a list of tracked movies and tv shows"""
+    await update.message.reply_text(await get_tracked_list(update.effective_user.id))
+
+
+@sync_to_async
 def get_movie_releases() -> list[tuple[User, Movie, str]]:
     """
     Get new movie releases as a list of tuples (tracking_user, released_movie, image_url).
@@ -161,6 +179,7 @@ def main() -> None:
 
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('track', track))
+    application.add_handler(CommandHandler('shows', shows))
 
     application.job_queue.run_daily(send_releases, time(hour=18, minute=0))
 
