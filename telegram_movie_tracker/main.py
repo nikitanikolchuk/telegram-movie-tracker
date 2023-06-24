@@ -164,7 +164,7 @@ def main() -> None:
     application.add_handler(CommandHandler('track', track))
     application.add_handler(CommandHandler('shows', shows))
 
-    application.job_queue.run_daily(send_releases, time(hour=18, minute=0))
+    application.job_queue.run_daily(send_releases, time(hour=16, minute=0))
 
     application.run_polling()
 
