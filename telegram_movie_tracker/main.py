@@ -3,9 +3,9 @@ import logging
 import re
 from datetime import time
 
+import requests
 from asgiref.sync import sync_to_async
 from telegram import Update
-from telegram.error import BadRequest
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 from tmdbsimple import Movies, TV
 from tmdbsimple.find import Find
@@ -91,11 +91,11 @@ def get_movie_releases() -> list[tuple[User, str, str]]:
     releases = []
     for movie in Movie.objects.all():
         movie_info = Movies(movie.id).info()
-        if 'status' in movie_info and 'status' == 'Released':
+        if 'status' in movie_info and movie_info['status'] == 'Released':
             message_text = f"{movie.title} was released"
-            poster_url = IMAGE_URL_PREFIX
+            poster_url = ''
             if 'poster_path' in movie_info:
-                poster_url += str(movie_info['poster_path'])
+                poster_url = IMAGE_URL_PREFIX + str(movie_info['poster_path'])
             for user in movie.users.all():
                 releases.append((user, message_text, poster_url))
             movie.delete()
@@ -112,7 +112,7 @@ def get_tv_show_releases() -> list[tuple[User, str, str]]:
         tv_show_info = TV(tv_show.id).info()
         if 'last_episode_to_air' in tv_show_info and tv_show_info['last_episode_to_air'] != '':
             last_episode_info = tv_show_info['last_episode_to_air']
-            poster_url = IMAGE_URL_PREFIX
+            poster_url = ''
             if last_episode_info['season_number'] > tv_show.last_season:
                 tv_show.last_season = last_episode_info['season_number']
                 tv_show.last_episode = last_episode_info['episode_number']
@@ -120,14 +120,14 @@ def get_tv_show_releases() -> list[tuple[User, str, str]]:
                 message_text = f"{tv_show.title} Season {tv_show.last_season} was released.\n" \
                                f"Number of already available episodes is {tv_show.last_episode}"
                 if 'poster_path' in tv_show_info['seasons'][tv_show.last_season]:
-                    poster_url += str(tv_show_info['seasons'][tv_show.last_season]['poster_path'])
+                    poster_url = IMAGE_URL_PREFIX + str(tv_show_info['seasons'][tv_show.last_season]['poster_path'])
             elif last_episode_info['episode_number'] > tv_show.last_episode:
                 tv_show.last_episode = last_episode_info['episode_number']
                 tv_show.save()
                 message_text = f"{tv_show.title} Season {tv_show.last_season} episode " \
                                f"{tv_show.last_episode} was released"
-                if 'poster_path' in last_episode_info['still_path']:
-                    poster_url += str(last_episode_info['still_path'])
+                if 'still_path' in last_episode_info:
+                    poster_url = IMAGE_URL_PREFIX + str(last_episode_info['still_path'])
             else:
                 continue
             for user in tv_show.users.all():
@@ -139,13 +139,14 @@ async def send_releases(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send info about new releases to users tracking them"""
     releases = itertools.chain(await get_movie_releases(), await get_tv_show_releases())
     for (user, message_text, poster_url) in releases:
-        try:
+        if poster_url != '':
+            poster = requests.get(poster_url, stream=True).content
             await context.bot.send_photo(
                 chat_id=user.id,
-                photo=poster_url,
+                photo=poster,
                 caption=message_text
             )
-        except BadRequest:
+        else:
             await context.bot.send_message(
                 chat_id=user.id,
                 text=message_text
