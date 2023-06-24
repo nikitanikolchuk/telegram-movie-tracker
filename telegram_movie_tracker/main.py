@@ -1,4 +1,5 @@
 import datetime
+import itertools
 import logging
 import re
 from datetime import date, time
@@ -86,9 +87,9 @@ async def shows(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 @sync_to_async
-def get_movie_releases() -> list[tuple[User, Movie, str]]:
+def get_movie_releases() -> list[tuple[User, str, str]]:
     """
-    Get new movie releases as a list of tuples (tracking_user, released_movie, image_url).
+    Get new movie releases as a list of tuples (tracking_user, message_text, image_url).
     Released shows are deleted from the database.
     """
     releases = []
@@ -98,11 +99,12 @@ def get_movie_releases() -> list[tuple[User, Movie, str]]:
             movie.release_date = datetime.datetime.strptime(movie_info['release_date'], '%Y-%m-%d').date()
             movie.save()
         if movie.release_date is not None and movie.release_date <= date.today():
+            message_text = f"{movie.title} was released"
             image_url = IMAGE_URL_PREFIX
             if 'poster_path' in movie_info:
                 image_url += str(movie_info['poster_path'])
             for user in movie.users.all():
-                releases.append((user, movie, image_url))
+                releases.append((user, message_text, image_url))
             movie.delete()
     return releases
 
@@ -142,21 +144,8 @@ def get_tv_show_releases() -> list[tuple[User, str, str]]:
 
 async def send_releases(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send info about new releases to users tracking them"""
-    # TODO: get rid of code duplication
-    for (user, movie, image_url) in await get_movie_releases():
-        try:
-            await context.bot.send_photo(
-                chat_id=user.id,
-                photo=image_url,
-                caption=f"{movie.title} was released"
-            )
-        except BadRequest:
-            await context.bot.send_message(
-                chat_id=user.id,
-                text=f"{movie.title} was released"
-            )
-
-    for (user, message_text, image_url) in await get_tv_show_releases():
+    releases = itertools.chain(await get_movie_releases(), await get_tv_show_releases())
+    for (user, message_text, image_url) in releases:
         try:
             await context.bot.send_photo(
                 chat_id=user.id,
