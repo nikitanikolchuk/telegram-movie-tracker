@@ -25,7 +25,6 @@ class Movie(models.Model):
 
     id = models.IntegerField(primary_key=True)
     title = models.CharField(max_length=256)
-    release_date = models.DateField(blank=True, null=True)
     users = models.ManyToManyField(User, related_name='movies', db_table='movie_user')
 
 

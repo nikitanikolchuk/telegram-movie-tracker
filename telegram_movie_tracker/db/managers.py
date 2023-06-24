@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from asgiref.sync import sync_to_async
 from django.db import models
 
@@ -8,22 +6,19 @@ class MovieManager(models.Manager):
     """Manager class for Movie model"""
 
     def get_or_create_movie(self, movie_info: dict):
-        if 'release_date' in movie_info and movie_info['release_date'] != '':
-            release_date = datetime.strptime(movie_info['release_date'], '%Y-%m-%d').date()
-        else:
-            release_date = None
         movie, _ = super().get_queryset().get_or_create(
             id=movie_info['id'],
-            title=movie_info['title'],
-            release_date=release_date
+            title=movie_info['title']
         )
         return movie
 
     @sync_to_async
     def track_movie(self, movie_info: dict, user_id: int) -> None:
+        if 'status' in movie_info and movie_info['status'] == 'Released':
+            raise ValueError("The movie was already released")
         movie = self.get_or_create_movie(movie_info)
         if movie.users.filter(id=user_id).exists():
-            raise ValueError(f"Already tracking this movie")
+            raise ValueError(f"Already tracking {movie_info['title']}")
         movie.users.add(user_id)
 
 
