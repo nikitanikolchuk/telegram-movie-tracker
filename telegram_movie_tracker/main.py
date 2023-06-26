@@ -22,7 +22,10 @@ IMAGE_URL_PREFIX = 'https://image.tmdb.org/t/p/w500'
 
 
 async def start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Hello! I'm a bot for tracking releases of new shows")
+    await update.message.reply_text(
+        "Hello! I'm a bot for tracking releases of new shows. "
+        "To get info about commands use /help"
+    )
     if not await sync_to_async(User.objects.filter(id=update.effective_user.id).exists)():  # type: ignore
         await sync_to_async(User(update.effective_user.id).save)()  # type: ignore
 
@@ -80,6 +83,15 @@ def get_tracked_list(user_id: int) -> str:
 async def shows(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     """Send user a list of tracked movies and tv shows"""
     await update.message.reply_text(await get_tracked_list(update.effective_user.id))
+
+
+async def get_help(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send info about available commands"""
+    await update.message.reply_text(
+        "The bot allows you to track releases of new movies and episodes of your TV shows.\n\n"
+        "To add a show send a link to it's page on imdb.com in the format:\n/track {url}\n\n"
+        "To get a list of your tracked shows use /shows command"
+    )
 
 
 @sync_to_async
@@ -163,6 +175,7 @@ def main() -> None:
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('track', track))
     application.add_handler(CommandHandler('shows', shows))
+    application.add_handler(CommandHandler('help', get_help))
 
     application.job_queue.run_daily(send_releases, time(hour=16, minute=0))
 
