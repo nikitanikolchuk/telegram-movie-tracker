@@ -136,7 +136,7 @@ def get_tv_show_releases() -> list[tuple[User, str, str]]:
             elif last_episode_info['episode_number'] > tv_show.last_episode:
                 tv_show.last_episode = last_episode_info['episode_number']
                 tv_show.save()
-                message_text = f"{tv_show.title} Season {tv_show.last_season} episode " \
+                message_text = f"{tv_show.title} Season {tv_show.last_season} Episode " \
                                f"{tv_show.last_episode} was released"
                 if 'still_path' in last_episode_info:
                     poster_url = IMAGE_URL_PREFIX + str(last_episode_info['still_path'])
