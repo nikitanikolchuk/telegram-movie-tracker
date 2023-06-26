@@ -6,7 +6,7 @@ from datetime import time
 import requests
 from asgiref.sync import sync_to_async
 from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
 from tmdbsimple import Movies, TV
 from tmdbsimple.find import Find
 
@@ -176,6 +176,14 @@ def main() -> None:
     application.add_handler(CommandHandler('track', track))
     application.add_handler(CommandHandler('shows', shows))
     application.add_handler(CommandHandler('help', get_help))
+    application.add_handler(MessageHandler(
+        filters.COMMAND,
+        callback=lambda update, _: update.message.reply_text("Unknown command, see /help")
+    ))
+    application.add_handler(MessageHandler(
+        filters.ALL,
+        callback=lambda update, _: update.message.reply_text("Not a command, see /help")
+    ))
 
     application.job_queue.run_daily(send_releases, time(hour=16, minute=0))
 
