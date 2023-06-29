@@ -35,7 +35,7 @@ def get_show_list(user: User) -> list[Movie | TVShow]:
     return list(itertools.chain(user.movies.all(), user.tv_shows.all()))  # type: ignore
 
 
-async def start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+async def start_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "Hello! I'm a bot for tracking releases of new shows. "
         "To get info about commands use /help"
@@ -44,7 +44,7 @@ async def start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         await sync_to_async(User(update.effective_user.id).save)()  # type: ignore
 
 
-async def track(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def track_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Command to add an IMDB show in the format '/track {url}' """
     if len(context.args) != 1:
         await update.message.reply_text("Command is not in the format '/track {url}'")
@@ -88,7 +88,7 @@ def stop_tracking(show: Movie | TVShow, user: User) -> str:
     return f"Stopped tracking {show.title}"
 
 
-async def stop(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+async def stop_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     """Command to stop tracking a show"""
     user = await sync_to_async(User.objects.get)(pk=update.effective_user.id)  # type: ignore
     shows = await get_show_list(user)
@@ -112,12 +112,12 @@ def get_tracked_list(user_id: int) -> str:
     return message_text
 
 
-async def get_shows(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+async def shows_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     """Send user a list of tracked movies and tv shows"""
     await update.message.reply_text(await get_tracked_list(update.effective_user.id))
 
 
-async def get_help(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+async def help_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     """Send info about available commands"""
     await update.message.reply_text(
         "The bot allows you to track releases of new movies and episodes of your TV shows.\n"
@@ -218,11 +218,11 @@ def main() -> None:
         .build()
     )
 
-    application.add_handler(CommandHandler('start', start))
-    application.add_handler(CommandHandler('track', track))
-    application.add_handler(CommandHandler('stop', stop))
-    application.add_handler(CommandHandler('shows', get_shows))
-    application.add_handler(CommandHandler('help', get_help))
+    application.add_handler(CommandHandler('start', start_handler))
+    application.add_handler(CommandHandler('track', track_handler))
+    application.add_handler(CommandHandler('stop', stop_handler))
+    application.add_handler(CommandHandler('shows', shows_handler))
+    application.add_handler(CommandHandler('help', help_handler))
     application.add_handler(MessageHandler(
         filters.COMMAND,
         callback=lambda update, _: update.message.reply_text("Unknown command, see /help")
