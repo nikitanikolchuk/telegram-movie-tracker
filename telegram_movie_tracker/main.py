@@ -2,11 +2,12 @@ import itertools
 import logging
 import re
 from datetime import time
+from typing import Any, Callable, cast, Coroutine
 
 import requests
 from asgiref.sync import sync_to_async
-from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, CallbackQueryHandler
 from tmdbsimple import Movies, TV
 from tmdbsimple.find import Find
 
@@ -19,6 +20,19 @@ logging.basicConfig(
 )
 
 IMAGE_URL_PREFIX = 'https://image.tmdb.org/t/p/w500'
+
+
+def button_markup(buttons: [str, Callable[..., str]]) -> InlineKeyboardMarkup:
+    """Construct keyboard markup from a list of tuples (button_text, callable)"""
+    return InlineKeyboardMarkup.from_column(
+        [InlineKeyboardButton(text=text, callback_data=callback) for (text, callback) in buttons]
+    )
+
+
+@sync_to_async
+def get_show_list(user: User) -> list[Movie | TVShow]:
+    """Get a list of all shows tracked by user"""
+    return list(itertools.chain(user.movies.all(), user.tv_shows.all()))  # type: ignore
 
 
 async def start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -68,6 +82,24 @@ async def track(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 @sync_to_async
+def stop_tracking(show: Movie | TVShow, user: User) -> str:
+    """Function to stop tracking a show"""
+    show.users.remove(user)
+    return f"Stopped tracking {show.title}"
+
+
+async def stop(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """Command to stop tracking a show"""
+    user = await sync_to_async(User.objects.get)(pk=update.effective_user.id)  # type: ignore
+    shows = await get_show_list(user)
+    keyboard = [(s.title, lambda: stop_tracking(s, user)) for s in shows]
+    await update.message.reply_text(
+        text="Choose the show you want to stop tracking",
+        reply_markup=button_markup(keyboard)
+    )
+
+
+@sync_to_async
 def get_tracked_list(user_id: int) -> str:
     """Get a list of movies and TV shows for this user as a str"""
     message_text = "Movies:\n"
@@ -80,7 +112,7 @@ def get_tracked_list(user_id: int) -> str:
     return message_text
 
 
-async def shows(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+async def get_shows(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     """Send user a list of tracked movies and tv shows"""
     await update.message.reply_text(await get_tracked_list(update.effective_user.id))
 
@@ -88,10 +120,23 @@ async def shows(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
 async def get_help(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     """Send info about available commands"""
     await update.message.reply_text(
-        "The bot allows you to track releases of new movies and episodes of your TV shows.\n\n"
-        "To add a show send a link to it's page on imdb.com in the format:\n/track {url}\n\n"
+        "The bot allows you to track releases of new movies and episodes of your TV shows.\n"
+        "\n"
+        "To add a show send a link to it's page on imdb.com in the format:\n"
+        "/track {url}\n"
+        "\n"
         "To get a list of your tracked shows use /shows command"
     )
+
+
+async def button_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle a button click by calling the associated function"""
+    query = update.callback_query
+
+    await query.answer()
+
+    callback = cast(Callable[..., Coroutine[Any, Any, str]], query.data)
+    await query.edit_message_text(await callback())
 
 
 @sync_to_async
@@ -169,12 +214,14 @@ def main() -> None:
     application = (
         ApplicationBuilder()
         .token(env('BOT_TOKEN'))
+        .arbitrary_callback_data(True)
         .build()
     )
 
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('track', track))
-    application.add_handler(CommandHandler('shows', shows))
+    application.add_handler(CommandHandler('stop', stop))
+    application.add_handler(CommandHandler('shows', get_shows))
     application.add_handler(CommandHandler('help', get_help))
     application.add_handler(MessageHandler(
         filters.COMMAND,
@@ -184,6 +231,7 @@ def main() -> None:
         filters.ALL,
         callback=lambda update, _: update.message.reply_text("Not a command, see /help")
     ))
+    application.add_handler(CallbackQueryHandler(button_handler))
 
     application.job_queue.run_daily(send_releases, time(hour=16, minute=0))
 
