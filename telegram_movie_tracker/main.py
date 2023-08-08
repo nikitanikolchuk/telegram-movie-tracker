@@ -1,6 +1,8 @@
 import itertools
+import json
 import logging
 import re
+import traceback
 from dataclasses import dataclass
 from datetime import time
 from enum import Enum, auto
@@ -24,6 +26,7 @@ logging.basicConfig(
 )
 
 IMAGE_URL_PREFIX = 'https://image.tmdb.org/t/p/w500'
+CHARACTER_LIMIT = 4096
 
 
 class TrackState(Enum):
@@ -330,6 +333,36 @@ async def send_releases(context: ContextTypes.DEFAULT_TYPE) -> None:
             )
 
 
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Log the error and send a telegram message to the dev chat"""
+    logging.error("Exception while handling an update:", exc_info=context.error)
+
+    update_str = update.to_dict() if isinstance(update, Update) else str(update)
+    try:
+        update_str = json.dumps(update_str, indent=2, ensure_ascii=False)
+    except TypeError:
+        pass
+
+    tb_list = traceback.format_exception(None, context.error, context.error.__traceback__)
+    tb_string = "".join(tb_list)
+
+    message = (
+        f"An exception was raised while handling an update\n"
+        f"update = {update_str}\n"
+        f"\n"
+        f"context.chat_data = {context.chat_data}\n"
+        f"\n"
+        f"context.user_data = {context.user_data}\n"
+        f"\n"
+        f"{tb_string}"
+    )
+
+    for msg in range(0, len(message), CHARACTER_LIMIT):
+        await context.bot.send_message(
+            chat_id=env('DEV_CHAT_ID'), text=message[msg:msg + CHARACTER_LIMIT]
+        )
+
+
 def main() -> None:
     application = (
         ApplicationBuilder()
@@ -368,6 +401,7 @@ def main() -> None:
         callback=lambda update, _: update.message.reply_text("Not a command, see /help")
     ))
     application.add_handler(CallbackQueryHandler(button_handler))
+    application.add_error_handler(error_handler)
 
     application.job_queue.run_daily(send_releases, time(hour=16, minute=0))
 
