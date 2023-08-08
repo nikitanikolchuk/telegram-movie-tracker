@@ -1,6 +1,7 @@
 import itertools
 import logging
 import re
+from dataclasses import dataclass
 from datetime import time
 from enum import Enum, auto
 from typing import Any, Callable, cast, Coroutine
@@ -33,6 +34,14 @@ class TrackState(Enum):
     TV_SHOW = auto()
     TV_SHOW_CHOICE = auto()
     LINK = auto()
+
+
+@dataclass
+class Release:
+    """Dataclass for a release of a new show or episode"""
+    user: User
+    caption: str
+    image_url: str
 
 
 def button_markup(buttons: [str, Any]) -> InlineKeyboardMarkup:
@@ -257,73 +266,67 @@ async def button_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 @sync_to_async
-def get_movie_releases() -> list[tuple[User, str, str]]:
-    """
-    Get new movie releases as a list of tuples (tracking_user, message_text, poster_url).
-    Released shows are deleted from the database.
-    """
-    releases = []
+def get_movie_releases() -> list[Release]:
+    """Get new movie releases. Released movies are deleted from the database."""
+    releases: list[Release] = []
     for movie in Movie.objects.all():
         movie_info = Movies(movie.id).info()
         if 'status' in movie_info and movie_info['status'] == 'Released':
-            message_text = f"{movie.title} was released"
+            caption = f"{movie.title} was released"
             poster_url = ''
             if 'poster_path' in movie_info:
                 poster_url = IMAGE_URL_PREFIX + str(movie_info['poster_path'])
             for user in movie.users.all():
-                releases.append((user, message_text, poster_url))
+                releases.append(Release(user, caption, poster_url))
             movie.delete()
     return releases
 
 
 @sync_to_async
-def get_tv_show_releases() -> list[tuple[User, str, str]]:
-    """
-    Get new tv show episode releases as a list of tuples (tracking_user, message_text, poster_url).
-    """
-    releases = []
+def get_tv_show_releases() -> list[Release]:
+    """Get new tv show episode releases"""
+    releases: list[Release] = []
     for tv_show in TVShow.objects.all():
         tv_show_info = TV(tv_show.id).info()
         if 'last_episode_to_air' in tv_show_info and tv_show_info['last_episode_to_air'] != '':
             last_episode_info = tv_show_info['last_episode_to_air']
-            poster_url = ''
+            image_url = ''
             if last_episode_info['season_number'] > tv_show.last_season:
                 tv_show.last_season = last_episode_info['season_number']
                 tv_show.last_episode = last_episode_info['episode_number']
                 tv_show.save()
-                message_text = f"{tv_show.title} Season {tv_show.last_season} was released.\n" \
-                               f"Number of already available episodes is {tv_show.last_episode}"
+                caption = f"{tv_show.title} Season {tv_show.last_season} was released.\n" \
+                          f"Number of already available episodes is {tv_show.last_episode}"
                 if 'poster_path' in tv_show_info['seasons'][tv_show.last_season]:
-                    poster_url = IMAGE_URL_PREFIX + str(tv_show_info['seasons'][tv_show.last_season]['poster_path'])
+                    image_url = IMAGE_URL_PREFIX + str(tv_show_info['seasons'][tv_show.last_season]['poster_path'])
             elif last_episode_info['episode_number'] > tv_show.last_episode:
                 tv_show.last_episode = last_episode_info['episode_number']
                 tv_show.save()
-                message_text = f"{tv_show.title} Season {tv_show.last_season} Episode " \
-                               f"{tv_show.last_episode} was released"
+                caption = f"{tv_show.title} Season {tv_show.last_season} Episode " \
+                          f"{tv_show.last_episode} was released"
                 if 'still_path' in last_episode_info:
-                    poster_url = IMAGE_URL_PREFIX + str(last_episode_info['still_path'])
+                    image_url = IMAGE_URL_PREFIX + str(last_episode_info['still_path'])
             else:
                 continue
             for user in tv_show.users.all():
-                releases.append((user, message_text, poster_url))
+                releases.append(Release(user, caption, image_url))
     return releases
 
 
 async def send_releases(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send info about new releases to users tracking them"""
-    releases = itertools.chain(await get_movie_releases(), await get_tv_show_releases())
-    for (user, message_text, poster_url) in releases:
-        if poster_url != '':
-            poster = requests.get(poster_url, stream=True).content
+    for release in itertools.chain(await get_movie_releases(), await get_tv_show_releases()):
+        if release.image_url != '':
+            image = requests.get(release.image_url, stream=True).content
             await context.bot.send_photo(
-                chat_id=user.id,
-                photo=poster,
-                caption=message_text
+                chat_id=release.user.id,
+                photo=image,
+                caption=release.caption
             )
         else:
             await context.bot.send_message(
-                chat_id=user.id,
-                text=message_text
+                chat_id=release.user.id,
+                text=release.caption
             )
 
 
