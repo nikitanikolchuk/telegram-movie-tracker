@@ -2,6 +2,7 @@ import itertools
 import logging
 import re
 from datetime import time
+from enum import Enum, auto
 from typing import Any, Callable, cast, Coroutine
 
 import requests
@@ -22,7 +23,16 @@ logging.basicConfig(
 )
 
 IMAGE_URL_PREFIX = 'https://image.tmdb.org/t/p/w500'
-TRACK_CHOICE, TRACK_MOVIE, TRACK_MOVIE_CHOICE, TRACK_TV_SHOW, TRACK_TV_SHOW_CHOICE, TRACK_LINK = range(6)
+
+
+class TrackState(Enum):
+    """Enum for /track conversation handler states"""
+    INIT_CHOICE = auto()
+    MOVIE = auto()
+    MOVIE_CHOICE = auto()
+    TV_SHOW = auto()
+    TV_SHOW_CHOICE = auto()
+    LINK = auto()
 
 
 def button_markup(buttons: [str, Any]) -> InlineKeyboardMarkup:
@@ -60,7 +70,7 @@ async def cancel_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 
-async def track_start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> int:
+async def track_start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> TrackState:
     """Entrypoint for /track command"""
     buttons = [
         ("Search Movie", "movie"),
@@ -71,37 +81,37 @@ async def track_start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> int:
         text="Choose a show:",
         reply_markup=button_markup(buttons)
     )
-    return TRACK_CHOICE
+    return TrackState.INIT_CHOICE
 
 
-async def track_choice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> int:
+async def track_init_choice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> TrackState:
     """Handle /track choice"""
     await update.callback_query.answer()
     choice = update.callback_query.data
     if choice == 'movie':
-        message_text, state = "Send movie title", TRACK_MOVIE
+        message_text, state = "Send movie title", TrackState.MOVIE
     elif choice == 'tv_show':
-        message_text, state = "Send TV show title", TRACK_TV_SHOW
+        message_text, state = "Send TV show title", TrackState.TV_SHOW
     else:  # choice == 'link'
-        message_text, state = "Send link from imdb.com to the show", TRACK_LINK
+        message_text, state = "Send link from imdb.com to the show", TrackState.LINK
 
     await update.callback_query.message.reply_text(message_text)
     await update.callback_query.message.delete()
     return state
 
 
-async def track_movie(update: Update, _: ContextTypes.DEFAULT_TYPE) -> int:
+async def track_movie(update: Update, _: ContextTypes.DEFAULT_TYPE) -> TrackState:
     """Send list of movies with given message as a search prompt"""
     results = Search().movie(query=update.message.text)['results']
     if not results:
         await update.message.reply_text("No movies found, try again")
-        return TRACK_MOVIE
+        return TrackState.MOVIE
     buttons = [(f"{m['title']} ({m['release_date'][:4]})", m['id']) for m in results]
     await update.message.reply_text(
         text="Choose a movie:",
         reply_markup=button_markup(buttons)
     )
-    return TRACK_MOVIE_CHOICE
+    return TrackState.MOVIE_CHOICE
 
 
 async def track_movie_choice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> int:
@@ -121,19 +131,19 @@ async def track_movie_choice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> in
     return ConversationHandler.END
 
 
-async def track_tv_show(update: Update, _: ContextTypes.DEFAULT_TYPE) -> int:
+async def track_tv_show(update: Update, _: ContextTypes.DEFAULT_TYPE) -> TrackState:
     """Send list of TV shows with given message as a search prompt"""
     results = Search().tv(query=update.message.text)['results']
     if not results:
         await update.message.reply_text("No TV shows found, try again")
-        return TRACK_TV_SHOW
+        return TrackState.TV_SHOW
     # TODO: check if null first_air_date
     buttons = [(f"{t['name']} ({t['first_air_date'][:4]})", t['id']) for t in results]
     await update.message.reply_text(
         text="Choose a TV show:",
         reply_markup=button_markup(buttons)
     )
-    return TRACK_TV_SHOW_CHOICE
+    return TrackState.TV_SHOW_CHOICE
 
 
 async def track_tv_show_choice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> int:
@@ -153,12 +163,12 @@ async def track_tv_show_choice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> 
     return ConversationHandler.END
 
 
-async def track_link(update: Update, _: ContextTypes.DEFAULT_TYPE) -> int:
+async def track_link(update: Update, _: ContextTypes.DEFAULT_TYPE) -> TrackState | int:
     """Handle /track link"""
     match = re.match(r'(https://www\.|www\.)?imdb\.com/title/(?P<id>tt[0-9]+)/.*', update.message.text)
     if not match:
         await update.message.reply_text("Invalid link")
-        return TRACK_LINK
+        return TrackState.LINK
 
     find_info = Find(match.group('id')).info(external_source='imdb_id')
     if find_info['movie_results']:
@@ -182,7 +192,7 @@ async def track_link(update: Update, _: ContextTypes.DEFAULT_TYPE) -> int:
             return ConversationHandler.END
     else:
         await update.message.reply_text("Invalid link")
-        return TRACK_LINK
+        return TrackState.LINK
 
     await update.message.reply_text(f"Started tracking {show_name}")
     return ConversationHandler.END
@@ -328,12 +338,12 @@ def main() -> None:
     track_handler = ConversationHandler(
         entry_points=[CommandHandler('track', track_start)],
         states={
-            TRACK_CHOICE: [CallbackQueryHandler(track_choice)],
-            TRACK_MOVIE: [MessageHandler(filters.TEXT & ~filters.COMMAND, track_movie)],
-            TRACK_MOVIE_CHOICE: [CallbackQueryHandler(track_movie_choice)],
-            TRACK_TV_SHOW: [MessageHandler(filters.TEXT & ~filters.COMMAND, track_tv_show)],
-            TRACK_TV_SHOW_CHOICE: [CallbackQueryHandler(track_tv_show_choice)],
-            TRACK_LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, track_link)],
+            TrackState.INIT_CHOICE: [CallbackQueryHandler(track_init_choice)],
+            TrackState.MOVIE: [MessageHandler(filters.TEXT & ~filters.COMMAND, track_movie)],
+            TrackState.MOVIE_CHOICE: [CallbackQueryHandler(track_movie_choice)],
+            TrackState.TV_SHOW: [MessageHandler(filters.TEXT & ~filters.COMMAND, track_tv_show)],
+            TrackState.TV_SHOW_CHOICE: [CallbackQueryHandler(track_tv_show_choice)],
+            TrackState.LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, track_link)],
         },
         fallbacks=[
             CommandHandler('cancel', cancel_handler),
