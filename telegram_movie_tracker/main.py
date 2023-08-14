@@ -369,11 +369,20 @@ def main() -> None:
     track_handler = ConversationHandler(
         entry_points=[CommandHandler('track', track_start)],
         states={
-            TrackState.INIT_CHOICE: [CallbackQueryHandler(track_init_choice)],
+            TrackState.INIT_CHOICE: [
+                CallbackQueryHandler(track_init_choice),
+                MessageHandler(filters.ALL & ~filters.COMMAND, button_notify_handler)
+            ],
             TrackState.MOVIE: [MessageHandler(filters.TEXT & ~filters.COMMAND, track_movie)],
-            TrackState.MOVIE_CHOICE: [CallbackQueryHandler(track_movie_choice)],
+            TrackState.MOVIE_CHOICE: [
+                CallbackQueryHandler(track_movie_choice),
+                MessageHandler(filters.ALL & ~filters.COMMAND, button_notify_handler)
+            ],
             TrackState.TV_SHOW: [MessageHandler(filters.TEXT & ~filters.COMMAND, track_tv_show)],
-            TrackState.TV_SHOW_CHOICE: [CallbackQueryHandler(track_tv_show_choice)],
+            TrackState.TV_SHOW_CHOICE: [
+                CallbackQueryHandler(track_tv_show_choice),
+                MessageHandler(filters.ALL & ~filters.COMMAND, button_notify_handler)
+            ],
             TrackState.LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, track_link)],
         },
         fallbacks=[
@@ -387,7 +396,7 @@ def main() -> None:
         states={0: [CallbackQueryHandler(stop_choice)]},
         fallbacks=[
             CommandHandler('cancel', cancel_handler),
-            MessageHandler(filters.ALL, invalid_answer_handler)
+            MessageHandler(filters.ALL, button_notify_handler)
         ]
     )
 
