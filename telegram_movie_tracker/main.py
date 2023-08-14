@@ -6,7 +6,7 @@ import traceback
 from dataclasses import dataclass
 from datetime import time
 from enum import Enum, auto
-from typing import Any, Callable, cast, Coroutine
+from typing import Any
 
 import requests
 from asgiref.sync import sync_to_async
@@ -159,7 +159,7 @@ async def track_tv_show(update: Update, _: ContextTypes.DEFAULT_TYPE) -> TrackSt
 
 
 async def track_tv_show_choice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> int:
-    """Handler TV show /track choice"""
+    """Handle TV show /track choice"""
     await update.callback_query.answer()
     tv_show_id = update.callback_query.data
     tv_show_info = TV(tv_show_id).info()
@@ -210,22 +210,27 @@ async def track_link(update: Update, _: ContextTypes.DEFAULT_TYPE) -> TrackState
     return ConversationHandler.END
 
 
-@sync_to_async
-def stop_tracking(show: Movie | TVShow, user: User) -> str:
-    """Function to stop tracking a show"""
-    show.users.remove(user)
-    return f"Stopped tracking {show.title}"
-
-
-async def stop_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+async def stop_start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> int:
     """Command to stop tracking a show"""
     user = await sync_to_async(User.objects.get)(pk=update.effective_user.id)  # type: ignore
     shows = await get_show_list(user)
-    keyboard = [(s.title, lambda: stop_tracking(s, user)) for s in shows]
+    keyboard = [(s.title, s) for s in shows]
     await update.message.reply_text(
-        text="Choose the show you want to stop tracking",
+        text="Choose the show you want to stop tracking:",
         reply_markup=button_markup(keyboard)
     )
+    return 0
+
+
+async def stop_choice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handle /stop show choice"""
+    query = update.callback_query
+    await query.answer()
+    show: Movie | TVShow = query.data  # type: ignore
+    user = await sync_to_async(User.objects.get)(pk=update.effective_user.id)  # type: ignore
+    await sync_to_async(show.users.remove)(user)
+    await query.edit_message_text(f"Stopped tracking {show.title}")
+    return ConversationHandler.END
 
 
 @sync_to_async
@@ -256,16 +261,6 @@ async def help_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "\n"
         "To get a list of your tracked shows use /shows command"
     )
-
-
-async def button_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle a button click by calling the associated function"""
-    query = update.callback_query
-
-    await query.answer()
-
-    callback = cast(Callable[..., Coroutine[Any, Any, str]], query.data)
-    await query.edit_message_text(await callback())
 
 
 @sync_to_async
@@ -387,9 +382,18 @@ def main() -> None:
         ]
     )
 
+    stop_handler = ConversationHandler(
+        entry_points=[CommandHandler('stop', stop_start)],
+        states={0: [CallbackQueryHandler(stop_choice)]},
+        fallbacks=[
+            CommandHandler('cancel', cancel_handler),
+            MessageHandler(filters.ALL, invalid_answer_handler)
+        ]
+    )
+
     application.add_handler(CommandHandler('start', start_handler))
     application.add_handler(track_handler)
-    application.add_handler(CommandHandler('stop', stop_handler))
+    application.add_handler(stop_handler)
     application.add_handler(CommandHandler('shows', shows_handler))
     application.add_handler(CommandHandler('help', help_handler))
     application.add_handler(MessageHandler(
@@ -400,7 +404,6 @@ def main() -> None:
         filters.ALL,
         callback=lambda update, _: update.message.reply_text("Not a command, see /help")
     ))
-    application.add_handler(CallbackQueryHandler(button_handler))
     application.add_error_handler(error_handler)
 
     application.job_queue.run_daily(send_releases, time(hour=16, minute=0))
