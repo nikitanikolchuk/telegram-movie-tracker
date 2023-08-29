@@ -60,13 +60,20 @@ def get_show_list(user: User) -> list[Movie | TVShow]:
     return list(itertools.chain(user.movies.all(), user.tv_shows.all()))  # type: ignore
 
 
-async def start_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "Hello! I'm a bot for tracking releases of new shows. "
         "To get info about commands use /help"
     )
     if not await sync_to_async(User.objects.filter(id=update.effective_user.id).exists)():  # type: ignore
         await sync_to_async(User(update.effective_user.id).save)()  # type: ignore
+        await context.bot.send_message(
+            chat_id=env('DEV_CHAT_ID'),
+            text=f"New user added:\n"
+                 f"Username = {update.effective_user.name}\n"
+                 f"ID = {update.effective_user.id}\n"
+                 f"Language code = {update.effective_user.language_code}"
+        )
 
 
 async def button_notify_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
