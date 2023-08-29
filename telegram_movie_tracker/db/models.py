@@ -12,7 +12,7 @@ class User(models.Model):
     class Meta:
         db_table = 'user'
 
-    id = models.IntegerField(primary_key=True)
+    id = models.BigIntegerField(primary_key=True)
 
 
 class Movie(models.Model):
