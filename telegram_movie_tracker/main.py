@@ -293,7 +293,7 @@ def get_tv_show_releases() -> list[Release]:
     releases: list[Release] = []
     for tv_show in TVShow.objects.all():
         tv_show_info = TV(tv_show.id).info()
-        if 'last_episode_to_air' in tv_show_info and tv_show_info['last_episode_to_air'] != '':
+        if 'last_episode_to_air' in tv_show_info and tv_show_info['last_episode_to_air']:
             last_episode_info = tv_show_info['last_episode_to_air']
             image_url = ''
             if last_episode_info['season_number'] > tv_show.last_season:
