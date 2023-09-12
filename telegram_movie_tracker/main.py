@@ -44,7 +44,7 @@ class Release:
     """Dataclass for a release of a new show or episode"""
     user: User
     caption: str
-    image_url: str
+    image_path: str
 
 
 def button_markup(buttons: [str, Any]) -> InlineKeyboardMarkup:
@@ -52,6 +52,11 @@ def button_markup(buttons: [str, Any]) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup.from_column(
         [InlineKeyboardButton(text=text, callback_data=data) for (text, data) in buttons]
     )
+
+
+def get_image(image_path: str) -> bytes:
+    """Get image from TMDB image path"""
+    return requests.get(IMAGE_URL_PREFIX + image_path, stream=True).content
 
 
 @sync_to_async
@@ -145,7 +150,12 @@ async def track_movie_choice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> in
         await update.callback_query.message.delete()
         return ConversationHandler.END
 
-    await update.callback_query.message.reply_text(f"Started tracking {movie_info['title']}")
+    message_text = f"Started tracking {movie_info['title']}"
+    if 'poster_path' in movie_info:
+        image = get_image(movie_info['poster_path'])
+        await update.callback_query.message.reply_photo(image, message_text)
+    else:
+        await update.callback_query.message.reply_text(message_text)
     await update.callback_query.message.delete()
     return ConversationHandler.END
 
@@ -177,7 +187,12 @@ async def track_tv_show_choice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> 
         await update.callback_query.message.delete()
         return ConversationHandler.END
 
-    await update.callback_query.message.reply_text(f"Started tracking {tv_show_info['name']}")
+    message_text = f"Started tracking {tv_show_info['name']}"
+    if 'poster_path' in tv_show_info:
+        image = get_image(tv_show_info['poster_path'])
+        await update.callback_query.message.reply_photo(image, message_text)
+    else:
+        await update.callback_query.message.reply_text(message_text)
     await update.callback_query.message.delete()
     return ConversationHandler.END
 
@@ -278,11 +293,11 @@ def get_movie_releases() -> list[Release]:
         movie_info = Movies(movie.id).info()
         if 'status' in movie_info and movie_info['status'] == 'Released':
             caption = f"{movie.title} was released"
-            poster_url = ''
+            poster_path = ''
             if 'poster_path' in movie_info:
-                poster_url = IMAGE_URL_PREFIX + str(movie_info['poster_path'])
+                poster_path = str(movie_info['poster_path'])
             for user in movie.users.all():
-                releases.append(Release(user, caption, poster_url))
+                releases.append(Release(user, caption, poster_path))
             movie.delete()
     return releases
 
@@ -295,7 +310,7 @@ def get_tv_show_releases() -> list[Release]:
         tv_show_info = TV(tv_show.id).info()
         if 'last_episode_to_air' in tv_show_info and tv_show_info['last_episode_to_air']:
             last_episode_info = tv_show_info['last_episode_to_air']
-            image_url = ''
+            image_path = ''
             if last_episode_info['season_number'] > tv_show.last_season:
                 tv_show.last_season = last_episode_info['season_number']
                 tv_show.last_episode = last_episode_info['episode_number']
@@ -305,7 +320,7 @@ def get_tv_show_releases() -> list[Release]:
                 for season_info in tv_show_info['seasons']:
                     if season_info['season_number'] == tv_show.last_season:
                         if 'poster_path' in season_info:
-                            image_url = IMAGE_URL_PREFIX + str(season_info['poster_path'])
+                            image_path = season_info['poster_path']
                         break
             elif last_episode_info['episode_number'] > tv_show.last_episode:
                 tv_show.last_episode = last_episode_info['episode_number']
@@ -313,19 +328,19 @@ def get_tv_show_releases() -> list[Release]:
                 caption = f"{tv_show.title} Season {tv_show.last_season} Episode " \
                           f"{tv_show.last_episode} was released"
                 if 'still_path' in last_episode_info:
-                    image_url = IMAGE_URL_PREFIX + str(last_episode_info['still_path'])
+                    image_path = last_episode_info['still_path']
             else:
                 continue
             for user in tv_show.users.all():
-                releases.append(Release(user, caption, image_url))
+                releases.append(Release(user, caption, image_path))
     return releases
 
 
 async def send_releases(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send info about new releases to users tracking them"""
     for release in itertools.chain(await get_movie_releases(), await get_tv_show_releases()):
-        if release.image_url != '':
-            image = requests.get(release.image_url, stream=True).content
+        if release.image_path != '':
+            image = get_image(release.image_path)
             await context.bot.send_photo(
                 chat_id=release.user.id,
                 photo=image,
