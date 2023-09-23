@@ -316,7 +316,7 @@ def get_tv_show_releases() -> list[Release]:
                 tv_show.last_episode = last_episode_info['episode_number']
                 tv_show.save()
                 caption = f"{tv_show.title} Season {tv_show.last_season} was released.\n" \
-                          f"Number of already available episodes is {tv_show.last_episode}"
+                          f"{tv_show.last_episode} episode(s) available"
                 for season_info in tv_show_info['seasons']:
                     if season_info['season_number'] == tv_show.last_season:
                         if 'poster_path' in season_info:
