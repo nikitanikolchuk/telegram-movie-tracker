@@ -10,6 +10,7 @@ from typing import Any
 
 import requests
 from asgiref.sync import sync_to_async
+from django.db.models import QuerySet
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, \
     CallbackQueryHandler, ConversationHandler
@@ -255,16 +256,26 @@ async def stop_choice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 
+def show_list(shows: QuerySet[Movie | TVShow], show_type: str) -> str:
+    """Get a formatted list of shows as a str"""
+    shows = shows.order_by('title')
+    if len(shows) == 0:
+        return ""
+    result = f"{show_type}:\n"
+    for show in shows:
+        result += f"- {show.title}\n"
+    return result
+
+
 @sync_to_async
 def get_tracked_list(user_id: int) -> str:
     """Get a list of movies and TV shows for this user as a str"""
-    message_text = "Movies:\n"
     user = User.objects.get(pk=user_id)  # type: ignore
-    for movie in user.movies.all():
-        message_text += f"- {movie.title}\n"
-    message_text += "TV shows:\n"
-    for tv_show in user.tv_shows.all():
-        message_text += f"- {tv_show.title}\n"
+    message_text = ""
+    message_text += show_list(user.movies.all(), "Movies")
+    message_text += show_list(user.tv_shows.all(), "TV shows")
+    if message_text == "":
+        message_text = "Not tracking anything"
     return message_text
 
 
